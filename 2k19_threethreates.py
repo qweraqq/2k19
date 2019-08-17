@@ -8,8 +8,68 @@ from pykeyboard import PyKeyboard
 import logging
 import re
 import time
-
+import pyautogui
+import win32con
+import ctypes
 logging.basicConfig(level=logging.DEBUG)
+SendInput = ctypes.windll.user32.SendInput
+
+# C struct redefinitions
+PUL = ctypes.POINTER(ctypes.c_ulong)
+
+
+# https://stackoverflow.com/questions/14489013/simulate-python-keypresses-for-controlling-a-game
+# key code: https://gist.github.com/tracend/912308
+class KeyBdInput(ctypes.Structure):
+    _fields_ = [("wVk", ctypes.c_ushort),
+                ("wScan", ctypes.c_ushort),
+                ("dwFlags", ctypes.c_ulong),
+                ("time", ctypes.c_ulong),
+                ("dwExtraInfo", PUL)]
+
+
+class HardwareInput(ctypes.Structure):
+    _fields_ = [("uMsg", ctypes.c_ulong),
+                ("wParamL", ctypes.c_short),
+                ("wParamH", ctypes.c_ushort)]
+
+
+class MouseInput(ctypes.Structure):
+    _fields_ = [("dx", ctypes.c_long),
+                ("dy", ctypes.c_long),
+                ("mouseData", ctypes.c_ulong),
+                ("dwFlags", ctypes.c_ulong),
+                ("time",ctypes.c_ulong),
+                ("dwExtraInfo", PUL)]
+
+
+class Input_I(ctypes.Union):
+    _fields_ = [("ki", KeyBdInput),
+                 ("mi", MouseInput),
+                 ("hi", HardwareInput)]
+
+
+class Input(ctypes.Structure):
+    _fields_ = [("type", ctypes.c_ulong),
+                ("ii", Input_I)]
+
+
+# Actual Functions
+def PressKey(hexKeyCode):
+    extra = ctypes.c_ulong(0)
+    ii_ = Input_I()
+    ii_.ki = KeyBdInput( 0, hexKeyCode, 0x0008, 0, ctypes.pointer(extra) )
+    x = Input( ctypes.c_ulong(1), ii_ )
+    ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
+
+
+def ReleaseKey(hexKeyCode):
+    extra = ctypes.c_ulong(0)
+    ii_ = Input_I()
+    ii_.ki = KeyBdInput( 0, hexKeyCode, 0x0008 | 0x0002, 0, ctypes.pointer(extra) )
+    x = Input( ctypes.c_ulong(1), ii_ )
+    ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
+
 
 
 def get_resolution():
@@ -64,25 +124,31 @@ def get_window_info(wdname='.*2k19.*'):
         return win32gui.GetWindowRect(w.get_handle())
 
 
-def pass_and_shot(m, k):
-    for _ in range(4):  # 传四次球
-        k.tap_key('2')
-        k.press_key('A')
+def pass_and_shot():
+    for _ in range(4):  # 传3次球
+        win32api.keybd_event(98, 3, 0, 0)  # press 2
+        time.sleep(0.1)
+        win32api.keybd_event(98, 3, win32con.KEYEVENTF_KEYUP, 0)
+
+        win32api.keybd_event(65, 30, 0, 0)  # press a
         time.sleep(0.5)
-        k.release_key('A')
-        k.press_key(k.right_key)
-        time.sleep(0.8)
-        k.release_key(k.right_key)
-    k.press_key('S')
-    time.sleep(0.5)
-    k.release_key('S')
+        win32api.keybd_event(65, 30, win32con.KEYEVENTF_KEYUP, 0)
+
+        time.sleep(1)
+
+    win32api.keybd_event(83, 31, 0, 0)  # press s
+    time.sleep(0.58)
+    win32api.keybd_event(83, 31, win32con.KEYEVENTF_KEYUP, 0)
+    time.sleep(0.1)
+    PressKey(0xC8)  # up arrow
+    time.sleep(0.05)
+    ReleaseKey(0xC8)
 
 
 if __name__ == '__main__':
-    m = PyMouse()
-    k = PyKeyboard()
     logging.info(get_resolution())
-    logging.info(get_window_info('.*Sublime.*'))
-    pass_and_shot(m, k)
+    logging.info(get_window_info('NBA 2K19'))
+    while True:
+        pass_and_shot()
     # im = ImageGrab.grab(bbox=get_window_info('.*Sublime.*'))  # X1,Y1,X2,Y2
     # im.show()
