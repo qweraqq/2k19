@@ -109,7 +109,7 @@ class WindowMgr:
         return self._handle
 
 
-def get_window_info(wdname='.*2k19.*'):
+def get_window_info(wdname='.*2k21.*'):
     """
     get_window_info()函数返回2k19窗口信息(x1, y1, x2, y2)，
     (x1, y1)是窗口左上角的坐标，(x2, y2)是窗口右下角的坐标
