@@ -3,75 +3,18 @@
 import win32gui
 import win32api
 import pyscreenshot as ImageGrab
-from pymouse import PyMouse
-from pykeyboard import PyKeyboard
+from PIL import Image
 import logging
 import re
 import time
-import pyautogui
 import win32con
-import ctypes
-logging.basicConfig(level=logging.DEBUG)
-SendInput = ctypes.windll.user32.SendInput
-
-# C struct redefinitions
-PUL = ctypes.POINTER(ctypes.c_ulong)
+import imagehash
+logging.basicConfig(level=logging.INFO)
 
 
 # https://stackoverflow.com/questions/14489013/simulate-python-keypresses-for-controlling-a-game
 # key code: https://gist.github.com/tracend/912308
-class KeyBdInput(ctypes.Structure):
-    _fields_ = [("wVk", ctypes.c_ushort),
-                ("wScan", ctypes.c_ushort),
-                ("dwFlags", ctypes.c_ulong),
-                ("time", ctypes.c_ulong),
-                ("dwExtraInfo", PUL)]
-
-
-class HardwareInput(ctypes.Structure):
-    _fields_ = [("uMsg", ctypes.c_ulong),
-                ("wParamL", ctypes.c_short),
-                ("wParamH", ctypes.c_ushort)]
-
-
-class MouseInput(ctypes.Structure):
-    _fields_ = [("dx", ctypes.c_long),
-                ("dy", ctypes.c_long),
-                ("mouseData", ctypes.c_ulong),
-                ("dwFlags", ctypes.c_ulong),
-                ("time",ctypes.c_ulong),
-                ("dwExtraInfo", PUL)]
-
-
-class Input_I(ctypes.Union):
-    _fields_ = [("ki", KeyBdInput),
-                 ("mi", MouseInput),
-                 ("hi", HardwareInput)]
-
-
-class Input(ctypes.Structure):
-    _fields_ = [("type", ctypes.c_ulong),
-                ("ii", Input_I)]
-
-
-# Actual Functions
-def PressKey(hexKeyCode):
-    extra = ctypes.c_ulong(0)
-    ii_ = Input_I()
-    ii_.ki = KeyBdInput( 0, hexKeyCode, 0x0008, 0, ctypes.pointer(extra) )
-    x = Input( ctypes.c_ulong(1), ii_ )
-    ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
-
-
-def ReleaseKey(hexKeyCode):
-    extra = ctypes.c_ulong(0)
-    ii_ = Input_I()
-    ii_.ki = KeyBdInput( 0, hexKeyCode, 0x0008 | 0x0002, 0, ctypes.pointer(extra) )
-    x = Input( ctypes.c_ulong(1), ii_ )
-    ctypes.windll.user32.SendInput(1, ctypes.pointer(x), ctypes.sizeof(x))
-
-
-
+# https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 def get_resolution():
     """
     获取屏幕分辨率
@@ -123,32 +66,80 @@ def get_window_info(wdname='.*2k21.*'):
         w.set_foreground()
         return win32gui.GetWindowRect(w.get_handle())
 
+def is_quit():
+    time.sleep(0.2)
+    im = ImageGrab.grab(bbox=get_window_info('.*2K.*'))  # X1,Y1,X2,Y2
+    im.save("tmp_quit.jpg")
+    hash_tmp = imagehash.dhash(Image.open("tmp_quit.jpg"), hash_size=6)
+    similarities = []
+    for _ in range(9):
+        hash_value = imagehash.dhash(Image.open(f"quit{_}.jpg"), hash_size=6)
+        similary = 1 - (hash_value - hash_tmp)/len(hash_value.hash)**2
+        similarities.append(similary)
+    similary = max(similarities)
+    logging.info(f"Quiting game similary = {similary}")
+    return similary>=0.72
+
+def is_triplethreat():
+    time.sleep(0.2)
+    im = ImageGrab.grab(bbox=get_window_info('.*2K.*'))  # X1,Y1,X2,Y2
+    im.save("tmp_triplethreat.jpg")
+    similarities = []
+    hash_tmp = imagehash.dhash(Image.open("tmp_triplethreat.jpg"), hash_size=6)
+    for _ in range(2):
+        hash_value = imagehash.dhash(Image.open(f"triplethreat{_}.jpg"), hash_size=6)
+        similary = 1 - (hash_value - hash_tmp)/len(hash_value.hash)**2
+        similarities.append(similary)
+    similary = max(similarities)
+    logging.info(f"Triple Threat similary = {similary}")
+    return similary > 0.8
+
+def press_two():
+    win32api.keybd_event(98, 3, 0, 0)  # press 2in32api.keybd_event(98, 3, 0, 0)  # press 2
+    time.sleep(0.1)
+    win32api.keybd_event(98, 3, win32con.KEYEVENTF_KEYUP, 0)
+    time.sleep(0.1)
+
+
+def press_up():
+    win32api.keybd_event(0x26, 0xC8, 0, 0)  # press up
+    time.sleep(0.05)
+    win32api.keybd_event(0x26, 0xC8, win32con.KEYEVENTF_KEYUP, 0)
 
 def pass_and_shot():
-    for _ in range(4):  # 传3次球
-        win32api.keybd_event(98, 3, 0, 0)  # press 2
-        time.sleep(0.1)
-        win32api.keybd_event(98, 3, win32con.KEYEVENTF_KEYUP, 0)
+    for _ in range(3):  # 传3次球
+        if is_triplethreat():
+            logging.info("Triple threat")
+            time.sleep(1)
+            win32api.keybd_event(83, 31, 0, 0)  # press s
+            time.sleep(0.68)
+            win32api.keybd_event(83, 31, win32con.KEYEVENTF_KEYUP, 0)
+            time.sleep(1)
+        
+        if is_quit():
+            logging.info("Quiting game")
+            time.sleep(0.5)
+            press_up()
 
+        press_two()
         win32api.keybd_event(65, 30, 0, 0)  # press a
-        time.sleep(0.5)
+        time.sleep(0.2)
         win32api.keybd_event(65, 30, win32con.KEYEVENTF_KEYUP, 0)
 
-        time.sleep(1)
-
+    time.sleep(1)
     win32api.keybd_event(83, 31, 0, 0)  # press s
-    time.sleep(0.58)
+    time.sleep(0.7)
     win32api.keybd_event(83, 31, win32con.KEYEVENTF_KEYUP, 0)
-    time.sleep(0.1)
-    PressKey(0xC8)  # up arrow
-    time.sleep(0.05)
-    ReleaseKey(0xC8)
+    time.sleep(0.5)
+    press_up()
 
 
 if __name__ == '__main__':
     logging.info(get_resolution())
-    logging.info(get_window_info('NBA 2K19'))
+    logging.info(get_window_info('NBA 2K21'))
+
     while True:
         pass_and_shot()
-    # im = ImageGrab.grab(bbox=get_window_info('.*Sublime.*'))  # X1,Y1,X2,Y2
-    # im.show()
+    is_quit()
+    is_triplethreat()
+
