@@ -1,7 +1,7 @@
 # conda config --set proxy_servers.https socks5://127.0.0.1:1080
 # conda config --set proxy_servers.http socks5://127.0.0.1:1080
 PyAutoGUI==0.9.36 # conda install -c conda-forge pyautogui
-pywin32==224 # conda install -c anaconda pywin32
+pywin32==301 # conda install -c anaconda pywin32
 win32gui==221.6 # conda install -c anaconda pywin32
 pyscreenshot==0.5.1
 pyHook==1.5.1 #https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyhook
